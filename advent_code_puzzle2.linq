@@ -4,7 +4,6 @@ void Main()
 {
 	var boxes = File.ReadAllLines(@"C:\Users\Ivan Lloyd\Dropbox\Ivan Lloyd\Programming\AdventOfCode\advent_code_puzzle2.txt");
 
-
 	// part 1
 	var letterCounts = boxes
 		.Select(l => l.GroupBy(c => c)
