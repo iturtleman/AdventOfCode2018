@@ -2,7 +2,7 @@
 
 void Main()
 {
-	var polymer = File.ReadAllText(@"C:\Users\Ivan Lloyd\Dropbox\Ivan Lloyd\Programming\AdventOfCode\advent_code_puzzle5.txt").Trim();
+	var polymer = File.ReadAllLines(@"C:\Users\Ivan Lloyd\Dropbox\Ivan Lloyd\Programming\AdventOfCode\advent_code_puzzle5.txt").Single();
 
 
 	new { Polymer = polymer, Length = polymer.Length }.Dump();
@@ -77,7 +77,7 @@ String depolymerize(String polymer)
 		sb.Append(polymer[last]);
 		polymer = sb.ToString();
 	}
-	new { Polymer = polymer, Length = polymer.Length }.Dump();
+	//new { Polymer = polymer, Length = polymer.Length }.Dump();
 	return polymer;
 }
 
@@ -131,6 +131,6 @@ String depolymerize3(String polymer)
 	}
 
 
-	new { Polymer = polymer, Length = polymer.Length }.Dump();
+	//new { Polymer = polymer, Length = polymer.Length }.Dump();
 	return polymer;
 }
