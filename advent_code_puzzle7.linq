@@ -1,4 +1,9 @@
-<Query Kind="Program" />
+<Query Kind="Program">
+  <NuGetReference>Elders.PowerCollections</NuGetReference>
+  <NuGetReference>Microsoft.Tpl.Dataflow</NuGetReference>
+  <Namespace>System.Threading.Tasks.Dataflow</Namespace>
+  <Namespace>Wintellect.PowerCollections</Namespace>
+</Query>
 
 void Main()
 {
@@ -10,54 +15,53 @@ Step B must be finished before step E can begin.
 Step D must be finished before step E can begin.
 Step F must be finished before step E can begin.";
 
-	var test_reversed = ChainEvents(testInput.Split('\n').Select(GetLetterPairFromInputLineReversed));
+	var test_reversed = ChainEvents(testInput.Split('\n').Select(GetLetterPairFromInputLine));
 	CalculateOrderString(test_reversed).Dump();
 
-	var input = ChainEvents(File.ReadAllLines(@"C:\Users\Ivan Lloyd\Dropbox\Ivan Lloyd\Programming\AdventOfCode\advent_code_puzzle7.txt").Select(GetLetterPairFromInputLineReversed));
+	var input = ChainEvents(File.ReadAllLines(@"C:\Users\Ivan Lloyd\Dropbox\Ivan Lloyd\Programming\AdventOfCode\advent_code_puzzle7.txt").Select(GetLetterPairFromInputLine));
 	CalculateOrderString(input).Dump();
 	
 }
 
 String CalculateOrderString(Dictionary<string, HashSet<string>> input)
 {
-	var reversedOut = GetStepOrderFromMap(input).Reverse();
+	var orderedString = GetStepOrderFromMap(input).Dump();
 
 	var found = new HashSet<char>();
 	var sb = new StringBuilder();
-	foreach (var r in reversedOut)
+	foreach (var r in orderedString.Reverse())
 	{
 		if (!found.Contains(r))
 			sb.Append(r);
 		found.Add(r);
 	}
-	return sb.ToString();
+	return String.Join(string.Empty,sb.ToString().Reverse());
 }
 
 String GetStepOrderFromMap(Dictionary<string, HashSet<string>> orderedOperations)
 {
-	var processQueue = new Queue<String>();
+	var processQueue = new OrderedBag<String>();
 	HashSet<String> waitingSteps = orderedOperations.Values.SelectMany(val => val).ToHashSet();
 	new { waitingSteps = waitingSteps }.Dump();
 
 	//enqueue all steps that do not need to wait
-	foreach (var step in orderedOperations.Where(kvp => !waitingSteps.Contains(kvp.Key)).OrderByDescending(kvp => kvp.Key))
-	{
-		processQueue.Enqueue(step.Key);
-	}
-	new { processQueue = processQueue }.Dump();
+	processQueue.AddMany(orderedOperations.Where(kvp => !waitingSteps.Contains(kvp.Key)).Select(kvp => kvp.Key));
+
 
 	var sb = new StringBuilder();
 
 	while (processQueue.Any())
 	{
-		var curr = processQueue.Dequeue();
+		new { processQueue = processQueue,sb=sb.ToString(), }.Dump();
+	
+		var curr = processQueue.RemoveFirst();
+		//remove duplicates
+		while (processQueue.Any() && processQueue.GetFirst() == curr)
+			processQueue.RemoveFirst();
 		sb.Append(curr);
+		//queue up the rest
 		if (orderedOperations.ContainsKey(curr))
-
-			foreach (var s in orderedOperations[curr].OrderByDescending(val => val))
-			{
-				processQueue.Enqueue(s);
-			}
+			processQueue.AddMany(orderedOperations[curr]);
 	}
 
 	return sb.ToString();
