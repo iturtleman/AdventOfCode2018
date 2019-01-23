@@ -23,13 +23,13 @@ Step F must be finished before step E can begin.";
 
 
 	new { CalculateLengthOfTimeToBuild = CalculateLengthOfTimeToBuild(testData, 2, 0) }.Dump();
-	//new { CalculateLengthOfTimeToBuild = CalculateLengthOfTimeToBuild(input, 5, 60) }.Dump();
+	new { CalculateLengthOfTimeToBuild = CalculateLengthOfTimeToBuild(input, 5, 60) }.Dump();
 }
 
 int CalculateLengthOfTimeToBuild(Dictionary<char, Node> graphNodes, int workers, int secondsToDelay)
 {
 	var processQueue = new OrderedSet<Node>();
-	var completedTasks = new HashSet<Node>();
+	var completedTasks = new HashSet<char>();
 	var tasks = Enumerable.Range(0,workers).Select(a=> new Worker()).ToArray();
 	int currentTime = 0;
 	//enqueue all steps that do not need to wait
@@ -40,33 +40,39 @@ int CalculateLengthOfTimeToBuild(Dictionary<char, Node> graphNodes, int workers,
 	//do the tasks (either enqueue or run any not complete)
 	while (processQueue.Any() || GetCurrentRunningCount(tasks, currentTime) > 0)
 	{
-		new { processQueue=processQueue, tasks=tasks, completedTasks=completedTasks,currentTime=currentTime}.Dump();
 		// each ready worker can take a task
-		foreach (var t in tasks.Where(t => IsTaskComplete(t, currentTime)))
+		var availableWorkers = tasks.Where(t => IsTaskComplete(t, currentTime)).ToList();
+		foreach (var t in availableWorkers)
 		{
 			if (t.ProcessNode != null)
 			{
-				completedTasks.Add(t.ProcessNode);
-				if(!t.ProcessNode.OutboundEdges.Any())
-				{
-					t.ProcessNode=null;
-				}
-				else
-				{
-					var children = t.ProcessNode.OutboundEdges.Select(e => e.Child).ToList();
-					var toAdd = children.Where(n =>
-						!completedTasks.Contains(n)
-						&& n.InboundEdges.All(inEdges => !completedTasks.Contains(inEdges.Parent) && !completedTasks.Contains(n))).ToList();
-					processQueue.AddMany(toAdd);
-				}
+				completedTasks.Add(t.ProcessNode.Name);
+
+				var children = t.ProcessNode.OutboundEdges.Select(e => e.Child).ToList();
+				var toAdd = children.Where(n =>
+					!completedTasks.Contains(n.Name)
+					&& n.InboundEdges.All(inEdges => completedTasks.Contains(inEdges.Parent.Name))
+					&& !availableWorkers.Any(to=>to.ProcessNode != null && to.ProcessNode.Name == n.Name)).ToList();
+				processQueue.AddMany(toAdd);
+				t.ProcessNode = null;
+				t.CompletionTime = -1;
+
 			}
+		}
+
+		new { processQueue = processQueue, tasks = tasks, completedTasks = completedTasks, currentTime = currentTime }.Dump();
+		foreach (var t in tasks.Where(t => IsTaskComplete(t, currentTime)))
+		{
 			if (processQueue.Any())
 			{
 				var q = processQueue.RemoveFirst();
 				t.ProcessNode = q;
-				t.CompletionTime = secondsToDelay + q.Delay;
+				t.CompletionTime = (currentTime + secondsToDelay + q.Delay).Dump();
 			}
 		}
+		new { processQueue = processQueue, tasks = tasks, completedTasks = completedTasks, currentTime = currentTime }.Dump();
+		if (GetCurrentRunningCount(tasks, currentTime) == 0)
+			break;
 		currentTime++;
 	}
 
@@ -74,7 +80,7 @@ int CalculateLengthOfTimeToBuild(Dictionary<char, Node> graphNodes, int workers,
 }
 
 int GetCurrentRunningCount(IEnumerable<Worker> tasks, int currentTime){
-	return tasks.Where(t=>t.CompletionTime < currentTime).Count();
+	return tasks.Where(t=>t.CompletionTime >= currentTime).Count();
 }
 bool IsTaskComplete(Worker t, int currentTime){
 	return t.CompletionTime <= currentTime;
@@ -157,29 +163,30 @@ Edge CreateEdgeFromLine(String line)
 	return edge;
 }
 
-public class Node : IComparable
+public class Node : IComparable, IEquatable<Node>
 {
 	public char Name;
 	public HashSet<Edge> OutboundEdges = new HashSet<Edge>();
 	public HashSet<Edge> InboundEdges = new HashSet<Edge>();
 	public override bool Equals(object obj)
 	{
-		if (obj == null || !(obj is Edge)) return false;
 		var e = obj as Node;
+		if (e == null)
+			return false;
 		return Name.Equals(e.Name);
 	}
+
 	public override int GetHashCode()
 	{
-		return Delay;
+		return Name.GetHashCode();
 	}
 
 	public int CompareTo(object obj)
 	{
-		if (obj == null || !(obj is Edge)) return -1;
-		var e = obj as Node;
-		if (Delay == e.Delay)
+		var e=obj as Node;
+		if (Name == e.Name)
 			return 0;
-		return e.Delay<Delay?-1:1;
+		return Name.CompareTo(e.Name);
 	}
 
 	public int Delay { get { return Name - 'A' + 1; } }
@@ -188,18 +195,26 @@ public class Node : IComparable
 	{
 		return Name.ToString();
 	}
+
+	public bool Equals(Node other)
+	{
+		if (other == null)
+			return false;
+		return Name.Equals(other?.Name);
+	}
 }
 
-public class Edge 
+public class Edge : IComparable
 {
 	public Node Parent;
 	public Node Child;
 
 	public override bool Equals(object obj)
 	{
-		if(obj==null||!(obj is Edge)) return false;
 		var e = obj as Edge;
-		return e.Parent == Parent && e.Child == Child;
+		if(e==null)
+		return false;
+		return Parent.Equals(e.Parent) && Child.Equals(e.Child);
 	}
 
 	public override int GetHashCode()
@@ -220,5 +235,5 @@ public class Edge
 public class Worker
 {
 	public Node ProcessNode;
-	public int CompletionTime = -1;
+	public int CompletionTime = 0;
 }
