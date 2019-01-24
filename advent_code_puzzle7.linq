@@ -33,14 +33,15 @@ int CalculateLengthOfTimeToBuild(Dictionary<char, Node> graphNodes, int workers,
 	var tasks = Enumerable.Range(0,workers).Select(a=> new Worker()).ToArray();
 	int currentTime = 0;
 	//enqueue all steps that do not need to wait
-	processQueue.AddMany(graphNodes.Where(kvp => kvp.Value.InboundEdges.Count==0).Select(kvp => kvp.Value));
+	processQueue.AddMany(graphNodes.Where(kvp => kvp.Value.InboundEdges.Count == 0).Select(kvp => kvp.Value));
+	enqueueTasks(processQueue, tasks, currentTime, secondsToDelay);
 
 	var sb = new StringBuilder();
 
 	//do the tasks (either enqueue or run any not complete)
-	while (processQueue.Any() || GetCurrentRunningCount(tasks, currentTime) > 0)
+	while (processQueue.Any() || GetCurrentRunningCount(tasks, currentTime-1) > 0)
 	{
-		// each ready worker can take a task
+		//enqueue new tasks
 		var availableWorkers = tasks.Where(t => IsTaskComplete(t, currentTime)).ToList();
 		foreach (var t in availableWorkers)
 		{
@@ -55,28 +56,33 @@ int CalculateLengthOfTimeToBuild(Dictionary<char, Node> graphNodes, int workers,
 					&& !availableWorkers.Any(to=>to.ProcessNode != null && to.ProcessNode.Name == n.Name)).ToList();
 				processQueue.AddMany(toAdd);
 				t.ProcessNode = null;
-				t.CompletionTime = -1;
+				t.CompletionTime = int.MinValue;
 
 			}
 		}
 
-		new { processQueue = processQueue, tasks = tasks, completedTasks = completedTasks, currentTime = currentTime }.Dump();
-		foreach (var t in tasks.Where(t => IsTaskComplete(t, currentTime)))
-		{
-			if (processQueue.Any())
-			{
-				var q = processQueue.RemoveFirst();
-				t.ProcessNode = q;
-				t.CompletionTime = (currentTime + secondsToDelay + q.Delay).Dump();
-			}
-		}
-		new { processQueue = processQueue, tasks = tasks, completedTasks = completedTasks, currentTime = currentTime }.Dump();
-		if (GetCurrentRunningCount(tasks, currentTime) == 0)
-			break;
+
+
+		// each ready worker can take a task
+		enqueueTasks(processQueue, tasks, currentTime, secondsToDelay);
+		//new { processQueue = processQueue, tasks = tasks, completedTasks = completedTasks, currentTime = currentTime }.Dump();
 		currentTime++;
 	}
 
-	return currentTime;
+	return currentTime-1;
+}
+
+void enqueueTasks(OrderedSet<Node> processQueue, Worker[] tasks, int currentTime, int secondsToDelay)
+{
+	foreach (var t in tasks.Where(t => IsTaskComplete(t, currentTime)))
+	{
+		if (processQueue.Any())
+		{
+			var q = processQueue.RemoveFirst();
+			t.ProcessNode = q;
+			t.CompletionTime = (currentTime + secondsToDelay + q.Delay).Dump();
+		}
+	}
 }
 
 int GetCurrentRunningCount(IEnumerable<Worker> tasks, int currentTime){
@@ -130,37 +136,35 @@ String GetStepOrderFromMap(Dictionary<char, Node> graphNodes)
 	return sb.ToString();
 }
 
-Dictionary<char, Node> ChainEvents(IEnumerable<Edge> orderDef)
+Dictionary<char, Node> ChainEvents(IEnumerable<Tuple<char,char>> orderDef)
 {
 	var eventMap = new Dictionary<char, Node>();
 	foreach (var edge in orderDef)
 	{
-		if (!eventMap.ContainsKey(edge.Parent.Name))
-		{
-			eventMap[edge.Parent.Name] = edge.Parent;
-		}
-
-		if (!eventMap.ContainsKey(edge.Child.Name))
-		{
-			eventMap[edge.Child.Name] = edge.Child;
-		}
-
-
-		eventMap[edge.Parent.Name].OutboundEdges.Add(edge);
-		eventMap[edge.Child.Name].InboundEdges.Add(edge);
+		var e = new Edge() { Parent = getOrCreateNode(eventMap, edge.Item1), Child = getOrCreateNode(eventMap, edge.Item2)};
+		
+		eventMap[edge.Item1].OutboundEdges.Add(e);
+		eventMap[edge.Item2].InboundEdges.Add(e);
 	}
 	new { eventMap = eventMap }.Dump();
 	return eventMap;
 }
 
+Node getOrCreateNode(Dictionary<char, Node> eventMap, char nodeName)
+{
+	Node retval;
+	if (!eventMap.TryGetValue(nodeName, out retval))
+	{
+		retval = eventMap[nodeName] = new Node() { Name = nodeName };
+	}
+	return retval;
+}
+
 Regex r = new Regex(@"Step (\w+) must be finished before step (\w+) can begin.", RegexOptions.Compiled);
-Edge CreateEdgeFromLine(String line)
+Tuple<char,char> CreateEdgeFromLine(String line)
 {
 	var match = r.Match(line);
-	var edge = new Edge() { Parent = new Node() { Name = match.Groups[1].Value[0] }, Child = new Node() { Name = match.Groups[2].Value[0]}};
-	edge.Parent.OutboundEdges.Add(edge);
-	edge.Child.InboundEdges.Add(edge);
-	return edge;
+	return Tuple.Create(match.Groups[1].Value[0],match.Groups[2].Value[0]);
 }
 
 public class Node : IComparable, IEquatable<Node>
@@ -235,5 +239,5 @@ public class Edge : IComparable
 public class Worker
 {
 	public Node ProcessNode;
-	public int CompletionTime = 0;
+	public int CompletionTime = int.MinValue;
 }
