@@ -61,8 +61,6 @@ int CalculateLengthOfTimeToBuild(Dictionary<char, Node> graphNodes, int workers,
 			}
 		}
 
-
-
 		// each ready worker can take a task
 		enqueueTasks(processQueue, tasks, currentTime, secondsToDelay);
 		//new { processQueue = processQueue, tasks = tasks, completedTasks = completedTasks, currentTime = currentTime }.Dump();
