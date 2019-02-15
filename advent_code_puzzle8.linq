@@ -29,6 +29,7 @@ public Node parseNode (IEnumerable<int> input){
 	var retval=new Node(){
 		Name=(char)((int)'A'+nodesSoFar++),
 	};
+	// skip the first two characters which give metadata info
 	int lengthAlongString=2;
 	while(numNodes > 0)
 	{
@@ -49,6 +50,7 @@ public class Node
 	{
 		get
 		{
+			// count the 2 numbers for metadata
 			return Metadata.Count + Children.Sum(c => c.TotalItemsConsumed)+2;
 		}
 	}
@@ -71,7 +73,7 @@ public class Node
 					var index = m - 1;
 					if (index < 0 || index >= Children.Count)
 						return 0;
-					return Children[m - 1].Value;
+					return Children[index].Value;
 				}).Sum();
 		}
 	}
